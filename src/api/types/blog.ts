@@ -1,47 +1,46 @@
-export interface GetBlogPostPageRequest {
+import type { PageQuery } from "./general"
+
+export interface Page<T> {
+  content: T[]
   page: number
   size: number
-  categlorySlug: string | null
+  totalElements: number
+  totalPages: number
 }
 
-export interface BlogTagResponse {
-  name: string
-  slug: string
-}
-
-export interface BlogPostInfoResponse {
+export interface PostList {
+  id: string
   title: string
   slug: string
   excerpt: string
   coverImage: string
-  categorySlug: number[]
-  status: string
-  featured: boolean
   viewCount: number
   readTime: number
-  publishedAt: string
-  createdAt: string
-  updatedAt: string
-  tags: BlogTagResponse[]
+  publishedTime: string
+  categoryName: string
+  tagNames: string[]
 }
 
-export interface GetBlogPostBySlugRequest {
-  slug: string
+export interface PostPageQuery extends PageQuery{
+  categorySlug: string
+  tagSlugs: string[]
+  keyword: string
 }
 
-export interface BlogPostDetailResponse extends BlogPostInfoResponse {
+export interface Post extends PostList {
   content: string
 }
 
-export interface BlogCategoryResponse {
+export interface PostCategory {
+  id: string
   name: string
   slug: string
-  description: string
-  color: string
-  createdAt: string
-  updateAt: string
+  postCount: number
 }
 
-export interface BlogCategoryListResponse {
-  categlortList: BlogCategoryResponse[]
+export interface PostTag {
+  id: string
+  name: string
+  slug: string
+  postCount: number
 }

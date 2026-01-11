@@ -1,4 +1,4 @@
-import axios, { type AxiosResponse } from 'axios'
+import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 
 // 定义后端返回数据的统一格式
 export interface ApiResponse<T> {
@@ -9,7 +9,7 @@ export interface ApiResponse<T> {
 }
 
 // 创建axios实例
-export const http = axios.create({
+const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 5000,
 })
@@ -44,3 +44,12 @@ http.interceptors.response.use(
     throw wrappedError
   },
 )
+
+export const get = async <T>(
+  url: string,
+  config?: AxiosRequestConfig
+): Promise<T> => {
+  const response = await http.get<ApiResponse<T>>(url, config)
+  return response.data.data
+}
+

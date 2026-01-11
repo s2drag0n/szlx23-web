@@ -1,11 +1,117 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
+import { debounce } from 'lodash-es'
+import { type PostCategory, type PostTag, type PostPageQuery, type PostList } from '@/api/types/blog';
+import { getCategloryList, getPostPage, getTagList } from '@/api/modules/blog';
+import { formatDate } from '@/api/utils/format';
+
+const categories = ref<PostCategory[]>([])
+const loadingCategories = ref(false)
+const errorCategories = ref<string | null>(null)
+
+const selectedCategory = ref<string>('')
+
+const tags = ref<PostTag[]>([])
+const loadingTags = ref(false)
+const errorTags = ref<string | null>(null)
+
+const selectedTags = ref<string[]>([])
+
+const posts = ref<PostList[]>([])
+const loadingPosts = ref(false)
+const errorPosts = ref<string | null>(null)
+
+const keyword = ref<string>('')
+
+// 使用 lodash 的 debounce，等待 300 毫秒没有新输入时再触发
+const handleSearch = debounce(() => {
+  searchPosts()
+}, 300)
+
+/** 加载分类函数 */
+async function loadCategories() {
+  loadingCategories.value = true
+  errorCategories.value = null
+  try {
+    categories.value = await getCategloryList()
+  } catch (err) {
+    console.error(err)
+    errorCategories.value = '加载分类失败'
+  } finally {
+    loadingCategories.value = false
+  }
+}
+
+/** 监听分类选择 */
+watch(selectedCategory, () => {
+  searchPosts()
+})
+
+/** 加载标签函数 */
+async function loadTags() {
+  loadingTags.value = true
+  errorTags.value = null
+  try {
+    tags.value = await getTagList()
+  } catch (err) {
+    console.error(err)
+    errorTags.value = '加载标签失败'
+  } finally {
+    loadingTags.value = false
+  }
+}
+
+/** 标签切换函数 */
+const toggleTag = (tag: string) => {
+  const index = selectedTags.value.indexOf(tag)
+  if (index > -1) {
+    selectedTags.value.splice(index, 1)
+  } else {
+    selectedTags.value.push(tag)
+  }
+  searchPosts()
+}
+
+/** 组装查询参数 */
+const postPageParams = computed<PostPageQuery>(() => ({
+  page: 0,
+  size: 10,
+  categorySlug: selectedCategory.value,
+  tagSlugs: selectedTags.value,
+  keyword: keyword.value
+}))
+
+/** 搜索博文函数 */
+async function searchPosts() {
+  loadingPosts.value = true
+  errorPosts.value = null
+  try {
+    const postPage = await getPostPage(postPageParams.value)
+    posts.value = postPage.content
+  } catch (error) {
+    console.error(error)
+    errorPosts.value = '加载博文失败'
+  } finally {
+    loadingPosts.value = false
+  }
+}
+
+// 页面挂载时调用
+onMounted(() => {
+  loadCategories()
+  loadTags()
+  searchPosts()
+})
+
+</script>
+
 <template>
   <div class="blog-view">
     <!-- Header Section -->
     <div class="blog-header">
       <!-- Search Bar -->
       <div class="search-section">
-        <input v-model="searchQuery" type="text" class="search-input" placeholder="搜索文章内容、分类或标签..."
-          @input="handleSearch" />
+        <input v-model="keyword" type="text" class="search-input" placeholder="搜索文章内容、分类或标签..." @input="handleSearch" />
         <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path
             d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
@@ -16,19 +122,19 @@
       <div class="filter-controls">
         <!-- Category Dropdown -->
         <div class="category-filter">
-          <select v-model="selectedCategory" class="category-select" @change="handleCategoryChange">
+          <select v-model="selectedCategory" class="category-select">
             <option value="">所有分类</option>
-            <option v-for="cat in categories" :key="cat" :value="cat">
-              {{ cat }}
+            <option v-for="cat in categories" :key="cat.slug" :value="cat.slug">
+              {{ cat.name }}
             </option>
           </select>
         </div>
 
         <!-- Tag Cloud -->
         <div class="tag-cloud">
-          <span v-for="tag in tags" :key="tag" :class="['tag', { active: selectedTags.includes(tag) }]"
-            @click="toggleTag(tag)">
-            {{ tag }}
+          <span v-for="tag in tags" :key="tag.slug" :class="['tag', { active: selectedTags.includes(tag.slug) }]"
+            @click="toggleTag(tag.slug)">
+            {{ tag.name }}
           </span>
         </div>
       </div>
@@ -36,27 +142,27 @@
 
     <!-- Posts Grid -->
     <div class="posts-container">
-      <div v-if="filteredPosts.length === 0" class="empty-state">
+      <div v-if="posts.length === 0" class="empty-state">
         <p>暂无文章</p>
       </div>
 
-      <article v-for="post in filteredPosts" :key="post.id" class="post-card">
+      <article v-for="post in posts" :key="post.slug" class="post-card">
         <div class="post-image">
-          <img :src="post.image" :alt="post.title" />
+          <img :src="post.coverImage" :alt="post.title" />
         </div>
 
         <div class="post-content">
           <div class="post-header">
             <h3 class="post-title">{{ post.title }}</h3>
-            <time class="post-date">{{ formatDate(post.date) }}</time>
+            <time class="post-date">{{ formatDate(post.publishedTime) }}</time>
           </div>
 
           <p class="post-excerpt">{{ post.excerpt }}</p>
 
           <div class="post-meta">
-            <span class="post-category">{{ post.category }}</span>
+            <span class="post-category">{{ post.categoryName }}</span>
             <div class="post-tags">
-              <span v-for="tag in post.tags" :key="tag" class="post-tag"> #{{ tag }} </span>
+              <span v-for="tagName in post.tagNames" :key="tagName" class="post-tag"> #{{ tagName }} </span>
             </div>
           </div>
         </div>
@@ -64,77 +170,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed } from 'vue'
-
-const searchQuery = ref('')
-const selectedCategory = ref('')
-const selectedTags = ref(['ffoo', 'bar'])
-
-// Mock data
-const posts = ref([
-  {
-    id: 1,
-    title: 'Vue 3 Composition API 入门',
-    excerpt: '深入了解 Vue 3 的 Composition API，学习如何更好地组织代码...',
-    image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=300&h=200&fit=crop',
-    category: 'Vue',
-    tags: ['vue3', 'composition-api', 'javascript'],
-    date: new Date('2024-01-15'),
-  },
-  {
-    id: 2,
-    title: 'Tailwind CSS 最佳实践',
-    excerpt: '探索如何高效使用 Tailwind CSS 构建现代化界面...',
-    image: 'https://images.unsplash.com/photo-1633356122544-f134324ef6db?w=300&h=200&fit=crop',
-    category: 'CSS',
-    tags: ['tailwind', 'css', 'design'],
-    date: new Date('2024-01-10'),
-  },
-])
-
-const categories = computed(() => [...new Set(posts.value.map((p) => p.category))])
-
-const tags = computed(() => [...new Set(posts.value.flatMap((p) => p.tags))])
-
-const filteredPosts = computed(() => {
-  return posts.value.filter((post) => {
-    const matchSearch =
-      searchQuery.value === '' ||
-      post.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      post.excerpt.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      post.tags.some((tag) => tag.includes(searchQuery.value.toLowerCase()))
-
-    const matchCategory = selectedCategory.value === '' || post.category === selectedCategory.value
-    const matchTags =
-      selectedTags.value.length === 0 || selectedTags.value.some((tag) => post.tags.includes(tag))
-
-    return matchSearch && matchCategory && matchTags
-  })
-})
-
-const handleSearch = () => {
-  // Search is reactive through computed property
-}
-
-const handleCategoryChange = () => {
-  // Category filter is reactive through computed property
-}
-
-const toggleTag = (tag: string) => {
-  const index = selectedTags.value.indexOf(tag)
-  if (index > -1) {
-    selectedTags.value.splice(index, 1)
-  } else {
-    selectedTags.value.push(tag)
-  }
-}
-
-const formatDate = (date: Date) => {
-  return new Intl.DateTimeFormat('zh-CN').format(date)
-}
-</script>
 
 <style scoped>
 .blog-view {
