@@ -16,7 +16,7 @@ export interface PostList {
   coverImage: string
   viewCount: number
   readTime: number
-  publishedTime: string
+  publishTime: string
   categoryName: string
   tagNames: string[]
 }
